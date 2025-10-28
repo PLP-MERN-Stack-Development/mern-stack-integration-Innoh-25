@@ -72,8 +72,7 @@ const Home = () => {
           <p style={{color:'white'}}>Join our community to read and share amazing content</p>
         </div>
         <div className="auth-card">
-          <h2>🔒 Private Content</h2>
-          <p>Please log in to view posts and interact with our community</p>
+          <h4>Please log in to view posts and interact with our community</h4>
           <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', marginTop: '2rem' }}>
             <Link to="/login" className="btn btn-primary">
               🔐 Login

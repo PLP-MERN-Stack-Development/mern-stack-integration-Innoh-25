@@ -27,9 +27,7 @@ const Navbar = () => {
               <li>
                 <Link to="/create-post">Create Post</Link>
               </li>
-              <li>
-                <span>Welcome, {user?.username}</span>
-              </li>
+
               <li>
                 <button onClick={handleLogout} className="btn btn-primary">
                   Logout

@@ -136,13 +136,13 @@ cd client
 npm run dev
 ```
 
-The client will start on http://localhost:3000
+The client will start on http://localhost:5173
 
 ### Access the Application
 
 Open your browser and navigate to:
 
-- **Frontend**: http://localhost:3000
+- **Frontend**: http://localhost:5173
 - **Backend API**: http://localhost:5000
 
 ## 📁 Project Structure

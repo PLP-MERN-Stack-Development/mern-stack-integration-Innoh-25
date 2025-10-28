@@ -1,5 +1,4 @@
-// Post.js - Mongoose model for blog posts
-
+// Post.js - Fixed Mongoose model for blog posts
 const mongoose = require('mongoose');
 
 const PostSchema = new mongoose.Schema(
@@ -66,19 +65,38 @@ const PostSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Create slug from title before saving
-PostSchema.pre('save', function (next) {
-  if (!this.isModified('title')) {
-    return next();
-  }
-  
-  this.slug = this.title
+// Generate slug function
+const generateSlug = (title) => {
+  return title
     .toLowerCase()
     .replace(/[^\w ]+/g, '')
     .replace(/ +/g, '-');
-    
+};
+
+// Create slug from title before saving - FIXED VERSION
+PostSchema.pre('save', function (next) {
+  // Always generate slug if it doesn't exist or if title was modified
+  if (!this.slug || this.isModified('title')) {
+    let baseSlug = generateSlug(this.title);
+    this.slug = baseSlug;
+  }
   next();
 });
+
+// Static method to generate unique slug
+PostSchema.statics.generateUniqueSlug = async function (title) {
+  let slug = generateSlug(title);
+  let counter = 1;
+  let originalSlug = slug;
+
+  // Check if slug already exists and append number if it does
+  while (await this.findOne({ slug })) {
+    slug = `${originalSlug}-${counter}`;
+    counter++;
+  }
+
+  return slug;
+};
 
 // Virtual for post URL
 PostSchema.virtual('url').get(function () {
@@ -97,4 +115,4 @@ PostSchema.methods.incrementViewCount = function () {
   return this.save();
 };
 
-module.exports = mongoose.model('Post', PostSchema); 
+module.exports = mongoose.model('Post', PostSchema);

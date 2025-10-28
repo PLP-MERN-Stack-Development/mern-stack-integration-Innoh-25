@@ -69,7 +69,7 @@ const Home = () => {
       <div className="auth-container">
         <div className="hero-section">
           <h1>📝 Welcome to Our Blog</h1>
-          <p>Join our community to read and share amazing content</p>
+          <p style={{color:'white'}}>Join our community to read and share amazing content</p>
         </div>
         <div className="auth-card">
           <h2>🔒 Private Content</h2>

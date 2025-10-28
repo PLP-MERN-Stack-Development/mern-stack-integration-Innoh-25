@@ -18,8 +18,8 @@ const postValidationRules = [
 
 // @route   GET /api/posts
 // @desc    Get all posts with pagination and filtering
-// @access  Public
-router.get('/', async (req, res) => {
+// @access  Private (requires authentication)
+router.get('/', auth, async (req, res) => {  // ADD 'auth' middleware here
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
@@ -57,7 +57,6 @@ router.get('/', async (req, res) => {
     });
   }
 });
-
 // @route   GET /api/posts/:id
 // @desc    Get a single post by ID or slug
 // @access  Public

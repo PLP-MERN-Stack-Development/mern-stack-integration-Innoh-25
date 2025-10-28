@@ -25,19 +25,19 @@ const Login = () => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
+  e.preventDefault();
+  setError('');
+  setLoading(true);
 
-    try {
-      await login(formData);
-      navigate(from, { replace: true });
-    } catch (err) {
-      setError(err.response?.data?.error || 'Login failed');
-    } finally {
-      setLoading(false);
-    }
-  };
+  try {
+    await login(formData);
+    navigate('/'); // Simple redirect to home
+  } catch (err) {
+    setError(err.response?.data?.error || 'Login failed');
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div style={{ maxWidth: '400px', margin: '2rem auto' }}>

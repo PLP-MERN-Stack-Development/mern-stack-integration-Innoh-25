@@ -1,11 +1,11 @@
-// posts.js - Routes for blog posts
-
+// server/routes/posts.js - Fixed and optimized version
 const express = require('express');
 const { body, validationResult } = require('express-validator');
+const mongoose = require('mongoose');
 const Post = require('../models/Post');
 const Category = require('../models/Category');
-const mongoose = require('mongoose');
 const auth = require('../middleware/auth');
+const upload = require('../middleware/upload');
 
 const router = express.Router();
 
@@ -19,7 +19,7 @@ const postValidationRules = [
 // @route   GET /api/posts
 // @desc    Get all posts with pagination and filtering
 // @access  Private (requires authentication)
-router.get('/', auth, async (req, res) => {  // ADD 'auth' middleware here
+router.get('/', auth, async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
@@ -32,6 +32,7 @@ router.get('/', auth, async (req, res) => {  // ADD 'auth' middleware here
     }
 
     const posts = await Post.find(query)
+      .select('-featuredImage.data') // Exclude image data to reduce payload
       .populate('author', 'username')
       .populate('category', 'name')
       .sort({ createdAt: -1 })
@@ -40,9 +41,15 @@ router.get('/', auth, async (req, res) => {  // ADD 'auth' middleware here
 
     const total = await Post.countDocuments(query);
 
+    // Add hasFeaturedImage flag to each post
+    const postsWithImageFlag = posts.map(post => ({
+      ...post.toObject(),
+      hasFeaturedImage: !!post.featuredImage
+    }));
+
     res.json({
       success: true,
-      data: posts,
+      data: postsWithImageFlag,
       pagination: {
         page,
         limit,
@@ -57,65 +64,90 @@ router.get('/', auth, async (req, res) => {  // ADD 'auth' middleware here
     });
   }
 });
+
 // @route   GET /api/posts/:id
 // @desc    Get a single post by ID or slug
 // @access  Public
-// Enhanced version with better error logging
 router.get('/:id', async (req, res) => {
   try {
-    console.log(`Fetching post with identifier: ${req.params.id}`);
-    
     let post;
     const identifier = req.params.id;
-    
-    // Check if the parameter is a valid MongoDB ObjectId
+
     if (mongoose.Types.ObjectId.isValid(identifier)) {
-      console.log('Identifier is a valid ObjectId, searching by ID');
       post = await Post.findById(identifier)
+        .select('-featuredImage.data') // Exclude image data
         .populate('author', 'username avatar')
         .populate('category', 'name')
         .populate('comments.user', 'username');
     } else {
-      console.log('Identifier is not an ObjectId, searching by slug:', identifier);
       post = await Post.findOne({ slug: identifier })
+        .select('-featuredImage.data') // Exclude image data
         .populate('author', 'username avatar')
         .populate('category', 'name')
         .populate('comments.user', 'username');
     }
 
-    console.log('Post found:', post ? 'Yes' : 'No');
-    
     if (!post) {
       return res.status(404).json({
         success: false,
-        error: `Post not found with identifier: ${identifier}`,
+        error: 'Post not found',
       });
     }
 
+    // Add hasFeaturedImage flag
+    const responsePost = {
+      ...post.toObject(),
+      hasFeaturedImage: !!post.featuredImage
+    };
+
     // Increment view count
-    await post.incrementViewCount();
-    console.log('View count incremented');
+    await Post.findByIdAndUpdate(post._id, { $inc: { viewCount: 1 } });
 
     res.json({
       success: true,
-      data: post,
+      data: responsePost,
     });
   } catch (error) {
-    console.error('Error fetching post:');
-    console.error('Error message:', error.message);
-    console.error('Error stack:', error.stack);
-    
+    console.error('Error fetching post:', error);
     res.status(500).json({
       success: false,
       error: 'Server error while fetching post',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
 });
+
+// @route   GET /api/posts/:id/image
+// @desc    Get featured image for a post
+// @access  Public
+router.get('/:id/image', async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id).select('featuredImage');
+    
+    if (!post || !post.featuredImage || !post.featuredImage.data) {
+      return res.status(404).json({
+        success: false,
+        error: 'Image not found'
+      });
+    }
+
+    // Set appropriate content type
+    res.set('Content-Type', post.featuredImage.contentType);
+    
+    // Send the image buffer
+    res.send(post.featuredImage.data);
+  } catch (error) {
+    console.error('Error fetching image:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error fetching image'
+    });
+  }
+});
+
 // @route   POST /api/posts
-// @desc    Create a new post
+// @desc    Create a new post with image
 // @access  Private
-router.post('/', [auth, postValidationRules], async (req, res) => {
+router.post('/', [auth, upload.single('featuredImage')], async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -125,22 +157,48 @@ router.post('/', [auth, postValidationRules], async (req, res) => {
       });
     }
 
+    const { title, content, excerpt, category, tags, isPublished } = req.body;
+
     // Generate unique slug
-    const slug = await Post.generateUniqueSlug(req.body.title);
+    const slug = await Post.generateUniqueSlug(title);
 
-    const post = new Post({
-      ...req.body,
-      slug: slug,
+    const postData = {
+      title,
+      content,
+      excerpt,
+      category,
+      tags: tags ? tags.split(',').map(tag => tag.trim()).filter(tag => tag) : [],
+      isPublished: isPublished === 'true' || isPublished === true,
+      slug,
       author: req.user.id,
-    });
+    };
 
+    // Add featured image if uploaded (Base64 storage)
+    if (req.file) {
+      postData.featuredImage = {
+        data: req.file.buffer, // Store the file buffer directly in database
+        contentType: req.file.mimetype,
+        filename: req.file.originalname
+      };
+    }
+
+    const post = new Post(postData);
     await post.save();
+    
+    // Populate author and category for response
     await post.populate('category', 'name');
     await post.populate('author', 'username');
 
+    // Don't send image data in response to avoid huge payloads
+    const responsePost = post.toObject();
+    delete responsePost.featuredImage;
+
     res.status(201).json({
       success: true,
-      data: post,
+      data: {
+        ...responsePost,
+        hasFeaturedImage: !!post.featuredImage
+      },
     });
   } catch (error) {
     if (error.code === 11000) {
@@ -158,18 +216,10 @@ router.post('/', [auth, postValidationRules], async (req, res) => {
 });
 
 // @route   PUT /api/posts/:id
-// @desc    Update a post
+// @desc    Update a post with image
 // @access  Private
-router.put('/:id', [auth, postValidationRules], async (req, res) => {
+router.put('/:id', [auth, upload.single('featuredImage')], async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        errors: errors.array(),
-      });
-    }
-
     let post = await Post.findById(req.params.id);
     if (!post) {
       return res.status(404).json({
@@ -186,19 +236,51 @@ router.put('/:id', [auth, postValidationRules], async (req, res) => {
       });
     }
 
+    const { title, content, excerpt, category, tags, isPublished, removeFeaturedImage } = req.body;
+
+    const updateData = {
+      title,
+      content,
+      excerpt,
+      category,
+      tags: tags ? tags.split(',').map(tag => tag.trim()).filter(tag => tag) : [],
+      isPublished: isPublished === 'true' || isPublished === true,
+    };
+
+    // Handle featured image
+    if (req.file) {
+      // Store new image in database (Base64)
+      updateData.featuredImage = {
+        data: req.file.buffer,
+        contentType: req.file.mimetype,
+        filename: req.file.originalname
+      };
+    } else if (removeFeaturedImage === 'true') {
+      // Remove featured image if requested
+      updateData.featuredImage = null;
+    }
+
     post = await Post.findByIdAndUpdate(
       req.params.id,
-      { ...req.body },
+      updateData,
       { new: true, runValidators: true }
     )
+      .select('-featuredImage.data') // Exclude image data from response
       .populate('author', 'username')
       .populate('category', 'name');
 
+    // Add hasFeaturedImage flag to response
+    const responsePost = {
+      ...post.toObject(),
+      hasFeaturedImage: !!post.featuredImage
+    };
+
     res.json({
       success: true,
-      data: post,
+      data: responsePost,
     });
   } catch (error) {
+    console.error('Error updating post:', error);
     res.status(500).json({
       success: false,
       error: error.message,
@@ -301,14 +383,21 @@ router.get('/search', async (req, res) => {
         { tags: { $in: [new RegExp(query, 'i')] } },
       ],
     })
+      .select('-featuredImage.data') // Exclude image data
       .populate('author', 'username')
       .populate('category', 'name')
       .sort({ createdAt: -1 })
       .limit(20);
 
+    // Add hasFeaturedImage flag to each post
+    const postsWithImageFlag = posts.map(post => ({
+      ...post.toObject(),
+      hasFeaturedImage: !!post.featuredImage
+    }));
+
     res.json({
       success: true,
-      data: posts,
+      data: postsWithImageFlag,
     });
   } catch (error) {
     res.status(500).json({

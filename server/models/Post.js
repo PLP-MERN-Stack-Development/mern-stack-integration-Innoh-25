@@ -1,4 +1,4 @@
-// Post.js - Fixed Mongoose model for blog posts
+// server/models/Post.js - Updated for Base64 image storage
 const mongoose = require('mongoose');
 
 const PostSchema = new mongoose.Schema(
@@ -14,8 +14,9 @@ const PostSchema = new mongoose.Schema(
       required: [true, 'Please provide content'],
     },
     featuredImage: {
-      type: String,
-      default: 'default-post.jpg',
+      data: Buffer, // Store image data as Buffer
+      contentType: String, // Store MIME type
+      filename: String, // Original filename
     },
     slug: {
       type: String,
@@ -73,9 +74,8 @@ const generateSlug = (title) => {
     .replace(/ +/g, '-');
 };
 
-// Create slug from title before saving - FIXED VERSION
+// Create slug from title before saving
 PostSchema.pre('save', function (next) {
-  // Always generate slug if it doesn't exist or if title was modified
   if (!this.slug || this.isModified('title')) {
     let baseSlug = generateSlug(this.title);
     this.slug = baseSlug;
@@ -89,7 +89,6 @@ PostSchema.statics.generateUniqueSlug = async function (title) {
   let counter = 1;
   let originalSlug = slug;
 
-  // Check if slug already exists and append number if it does
   while (await this.findOne({ slug })) {
     slug = `${originalSlug}-${counter}`;
     counter++;
@@ -103,6 +102,14 @@ PostSchema.virtual('url').get(function () {
   return `/posts/${this.slug}`;
 });
 
+// Virtual for featured image URL (Base64 data URL)
+PostSchema.virtual('featuredImageUrl').get(function () {
+  if (!this.featuredImage || !this.featuredImage.data) {
+    return null;
+  }
+  return `data:${this.featuredImage.contentType};base64,${this.featuredImage.data.toString('base64')}`;
+});
+
 // Method to add a comment
 PostSchema.methods.addComment = function (userId, content) {
   this.comments.push({ user: userId, content });
@@ -110,9 +117,9 @@ PostSchema.methods.addComment = function (userId, content) {
 };
 
 // Method to increment view count
-PostSchema.methods.incrementViewCount = function () {
+PostSchema.methods.incrementViewCount = async function () {
   this.viewCount += 1;
-  return this.save();
+  return await this.save();
 };
 
 module.exports = mongoose.model('Post', PostSchema);

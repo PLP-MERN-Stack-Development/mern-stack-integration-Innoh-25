@@ -1,5 +1,4 @@
-// api.js - API service for making requests to the backend
-
+// api.js - Updated for Base64 image storage
 import axios from 'axios';
 
 // Create axios instance with base URL
@@ -56,16 +55,62 @@ export const postService = {
     return response.data;
   },
 
-  // Create a new post
+  // Create a new post with image
   createPost: async (postData) => {
-    const response = await api.post('/posts', postData);
-    return response.data;
+    try {
+      const formData = new FormData();
+      
+      // Append all post data
+      Object.keys(postData).forEach(key => {
+        if (key === 'featuredImage' && postData[key] instanceof File) {
+          formData.append('featuredImage', postData[key]);
+        } else if (key === 'tags' && Array.isArray(postData[key])) {
+          formData.append('tags', postData[key].join(','));
+        } else {
+          formData.append(key, postData[key]);
+        }
+      });
+
+      const response = await api.post('/posts', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error creating post:', error);
+      throw error;
+    }
   },
 
-  // Update an existing post
+  // Update an existing post with image
   updatePost: async (id, postData) => {
-    const response = await api.put(`/posts/${id}`, postData);
-    return response.data;
+    try {
+      const formData = new FormData();
+      
+      // Append all post data
+      Object.keys(postData).forEach(key => {
+        if (key === 'featuredImage' && postData[key] instanceof File) {
+          formData.append('featuredImage', postData[key]);
+        } else if (key === 'tags' && Array.isArray(postData[key])) {
+          formData.append('tags', postData[key].join(','));
+        } else if (key === 'removeFeaturedImage') {
+          formData.append('removeFeaturedImage', postData[key]);
+        } else {
+          formData.append(key, postData[key]);
+        }
+      });
+
+      const response = await api.put(`/posts/${id}`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error updating post:', error);
+      throw error;
+    }
   },
 
   // Delete a post
@@ -84,6 +129,11 @@ export const postService = {
   searchPosts: async (query) => {
     const response = await api.get(`/posts/search?q=${query}`);
     return response.data;
+  },
+
+  // Get post image URL
+  getPostImageUrl: (postId) => {
+    return `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/posts/${postId}/image`;
   },
 };
 
@@ -133,4 +183,7 @@ export const authService = {
   },
 };
 
-export default api; 
+// Remove the separate imageService since images are handled with posts
+// Images are now uploaded directly with post creation/updates
+
+export default api;

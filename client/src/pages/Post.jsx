@@ -40,18 +40,23 @@ const Post = () => {
         ← Back to Posts
       </Link>
       
-      <article className="card">
+      <article className="post-card">
         <h1>{post.title}</h1>
         <div className="post-meta">
           By {post.author?.username} • {new Date(post.createdAt).toLocaleDateString()} • 
           Category: {post.category?.name} • Views: {post.viewCount}
         </div>
-        
-        {post.featuredImage && post.featuredImage !== 'default-post.jpg' && (
+        {post.hasFeaturedImage && (
           <img 
-            src={`/uploads/${post.featuredImage}`} 
+            src={`http://localhost:5000/api/posts/${post._id}/image`}
             alt={post.title}
-            style={{ maxWidth: '100%', margin: '1rem 0', borderRadius: '8px' }}
+            style={{
+              width: 'autofit',
+              Height: 'autofit',
+              objectFit: 'cover',
+              borderRadius: '8px',
+              margin: '1rem 0'
+            }}
           />
         )}
         

@@ -1,19 +1,23 @@
-// client/src/pages/CreatePost.jsx - Updated to ensure posts are published
+// client/src/pages/CreatePost.jsx - Updated with image upload
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useApi from '../hooks/useApi';
 import { postService, categoryService } from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import ImageUpload from '../components/ImageUpload';
 
 const CreatePost = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     title: '',
     content: '',
     excerpt: '',
     category: '',
     tags: '',
-    isPublished: true  // Ensure this is TRUE by default
+    isPublished: true
   });
+  const [featuredImage, setFeaturedImage] = useState(null);
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [newCategory, setNewCategory] = useState({ name: '', description: '' });
   const [loading, setLoading] = useState(false);
@@ -55,49 +59,62 @@ const CreatePost = () => {
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    
-    if (!formData.category) {
-      alert('Please select a category');
-      setLoading(false);
-      return;
-    }
-    
-    try {
-      const postData = {
-        ...formData,
-        tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag),
-        isPublished: true // Force published status
-      };
-      
-      console.log('Creating post with data:', postData);
-      
-      const result = await postService.createPost(postData);
-      console.log('Post created successfully:', result);
-      navigate(`/posts/${result.data.slug}`);
-    } catch (error) {
-      console.error('Failed to create post:', error);
-      alert('Failed to create post: ' + (error.response?.data?.error || error.message));
-    } finally {
-      setLoading(false);
-    }
+  const handleImageSelect = (file) => {
+    setFeaturedImage(file);
   };
+
+  const handleRemoveImage = () => {
+    setFeaturedImage(null);
+  };
+
+  const handleSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  
+  if (!formData.category) {
+    alert('Please select a category');
+    setLoading(false);
+    return;
+  }
+  
+  try {
+    const postData = {
+      ...formData,
+      tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag),
+      isPublished: true
+    };
+
+    // Add featured image file if selected
+    if (featuredImage) {
+      postData.featuredImage = featuredImage;
+    }
+    
+    console.log('Creating post with image...');
+    
+    const result = await postService.createPost(postData);
+    console.log('Post created successfully:', result);
+    navigate(`/posts/${result.data.slug}`);
+  } catch (error) {
+    console.error('Failed to create post:', error);
+    alert('Failed to create post: ' + (error.response?.data?.error || error.message));
+  } finally {
+    setLoading(false);
+  }
+};
 
   if (categoriesLoading) {
     return <div className="loading">Loading...</div>;
   }
 
   return (
-    <div>
+    <div className="container">
       <h1>Create New Post</h1>
       
       <div style={{ 
         backgroundColor: '#e8f5e8', 
         padding: '1rem', 
-        borderRadius: '4px', 
-        marginBottom: '1rem',
+        borderRadius: '8px', 
+        marginBottom: '2rem',
         border: '1px solid #4caf50'
       }}>
         <strong>Note:</strong> Posts are published immediately by default.
@@ -114,6 +131,14 @@ const CreatePost = () => {
             className="form-control"
             required
             placeholder="Enter post title"
+          />
+        </div>
+
+        {/* Image Upload Component */}
+        <div className="form-group">
+          <ImageUpload 
+            onImageSelect={handleImageSelect}
+            onRemoveImage={handleRemoveImage}
           />
         </div>
 
@@ -264,8 +289,9 @@ const CreatePost = () => {
           type="submit" 
           className="btn btn-primary"
           disabled={loading || !formData.category}
+          style={{ fontSize: '1.1rem', padding: '0.75rem 2rem' }}
         >
-          {loading ? 'Creating Post...' : 'Create Post'}
+          {loading ? '📤 Creating Post...' : '📝 Create Post'}
         </button>
       </form>
     </div>

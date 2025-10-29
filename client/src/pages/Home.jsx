@@ -146,9 +146,24 @@ const Home = () => {
           </div>
           {posts.map(post => (
             <div key={post._id} className="post-card">
-              <Link to={`/posts/${post.slug}`} className="post-title">
-                {post.title}
-              </Link>
+              {/* Add featured image */}
+                {post.hasFeaturedImage && (
+              <div style={{ marginBottom: '1rem' }}>
+                <img 
+                  src={`http://localhost:5000/api/posts/${post._id}/image`}
+                  alt={post.title}
+                  style={{
+                    width: 'autofit',
+                    height: 'autofit',
+                    objectFit: 'cover',
+                    borderRadius: '8px'
+                  }}
+                />
+            </div>
+  )}
+    <Link to={`/posts/${post.slug}`} className="post-title">
+      {post.title}
+    </Link>
               <div className="post-meta">
                 <span>👤 By {post.author?.username}</span>
                 <span>📅 {new Date(post.createdAt).toLocaleDateString()}</span>
